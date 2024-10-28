@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SquareView: View {
     @State var isVisible: Bool
+    @State var textColor: Color
     
     var body: some View {
         VStack {
@@ -25,5 +26,5 @@ struct SquareView: View {
 }
 
 #Preview {
-    SquareView(isVisible: true)
+    SquareView(isVisible: true, textColor: .green)
 }
