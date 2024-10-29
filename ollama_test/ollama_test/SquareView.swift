@@ -23,6 +23,10 @@ struct SquareView: View {
             Text("보인다")
                 .opacity(isVisible ? 1 : 0)
         }
+        
+        VStack {
+            Text("Hi")
+        }
     }
 }
 
