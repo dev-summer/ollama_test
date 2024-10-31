@@ -14,7 +14,7 @@ struct ContentView: View {
                 .imageScale(.large)
                 .foregroundStyle(.tint)
             Text("Hello, world!")
-            SquareView(isVisible: true, textColor: .black)
+            SquareView(isVisible: true, textColor: .black, backgroundColor: .brown)
         }
         .padding()
     }
