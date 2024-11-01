@@ -2,8 +2,7 @@ name: Code Review
 on: pull_request
 
 jobs:
-  review_job:
-    name: Review Job
+  code-review:
       runs-on: ubuntu-latest
       steps:
         - uses: actions/checkout@v4
