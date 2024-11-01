@@ -21,28 +21,21 @@ jobs:
         shell: bash
         run: |
           PROMPT=$(cat review_prompt.md)
-          # Escape the content
-          PROMPT="${PROMPT//'%'/'%25'}"
-          PROMPT="${PROMPT//$'\n'/'%0A'}"
-          PROMPT="${PROMPT//$'\r'/'%0D'}"
-          echo "prompt=$PROMPT" >> $GITHUB_OUTPUT
+          echo "prompt=${PROMPT//$'\n'/\\n}" >> $GITHUB_OUTPUT
 
       - name: Extract pull request diff
         id: get_diff
         shell: bash
         run: |
           DIFF=$(git diff origin/main...HEAD)
-          # Escape the content
-          DIFF="${DIFF//'%'/'%25'}"
-          DIFF="${DIFF//$'\n'/'%0A'}"
-          DIFF="${DIFF//$'\r'/'%0D'}"
-          echo "diff=$DIFF" >> $GITHUB_OUTPUT
+          echo "diff=${DIFF//$'\n'/\\n}" >> $GITHUB_OUTPUT
 
       - name: Run Code Review with Hugging Face Model
         id: review_code
         run: |
           python3 << 'EOL'
           from transformers import pipeline
+          import os
           
           # Get the prompt and diff
           prompt = """${{ steps.load_prompt.outputs.prompt }}"""
@@ -52,7 +45,7 @@ jobs:
           review_model = pipeline("text-generation", model="Qwen/Qwen2.5-Coder-7B-Instruct")
           
           # Generate review
-          full_prompt = f"{prompt}\n\nCode to Review:\n```\n{diff}\n```"
+          full_prompt = f"{prompt}\n\nCode to review:\n```\n{diff}\n```"
           review_comment = review_model(
               full_prompt,
               max_length=2000,
