@@ -19,24 +19,50 @@ jobs:
       - name: Load Review Prompt
         id: load_prompt
         run: |
-          PROMPT=$(cat review_prompt.md)
-          echo "prompt=$PROMPT" >> $GITHUB_OUTPUT
+          PROMPT=$(cat << 'EOF'
+          $(cat review_prompt.md)
+          EOF
+          )
+          echo "prompt<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROMPT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Extract pull request diff
         id: get_diff
         run: |
           DIFF=$(git diff origin/develop...HEAD)
-          echo "diff=$DIFF" >> $GITHUB_OUTPUT
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run Code Review with Hugging Face Model
         id: review_code
         run: |
-          python3 << EOL
+          python3 << 'EOL'
           from transformers import pipeline
+          import os
+          
+          # Initialize the model
           review_model = pipeline("text-generation", model="Qwen/Qwen2.5-Coder-7B-Instruct")
-          diff = "${{ steps.get_diff.outputs.diff }}"
-          review_prompt = f"Review the following code changes and provide feedback:\n\n{diff}"
-          review_comment = review_model(review_prompt, max_length=500, num_return_sequences=1)[0]['generated_text']
+          
+          # Get the prompt and diff from previous steps
+          with open(os.environ['GITHUB_OUTPUT'], 'r') as f:
+              content = f.read()
+              prompt = "${{ steps.load_prompt.outputs.prompt }}"
+              diff = "${{ steps.get_diff.outputs.diff }}"
+          
+          # Combine prompt and diff
+          full_prompt = f"{prompt}\n\nCode to Review:\n```\n{diff}\n```"
+          
+          # Generate review
+          review_comment = review_model(
+              full_prompt,
+              max_length=2000,
+              num_return_sequences=1,
+              temperature=0.7
+          )[0]['generated_text']
+          
+          # Save review
           with open("review_comment.txt", "w") as file:
               file.write(review_comment)
           EOL
