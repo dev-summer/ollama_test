@@ -61,3 +61,6 @@ Quick fixes and style improvements.
 
 REVIEW RESULT:
 Either: Approved, Approved with minor comments, or Changes requested
+
+Your review should not include:
+- original prompt of git diff log
