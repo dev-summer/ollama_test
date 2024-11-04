@@ -5,6 +5,25 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     steps:
+      - name: Free up disk space
+        run: |
+          # Remove unnecessary large packages
+          sudo apt-get remove -y '^dotnet-.*'
+          sudo apt-get remove -y '^llvm-.*'
+          sudo apt-get remove -y 'php.*'
+          sudo apt-get remove -y azure-cli google-cloud-sdk mongodb-org
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          
+          # Remove large directories we won't need
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          
+          # Show available space
+          df -h
+
       - uses: actions/checkout@v4
       
       - name: Get PR Diff
@@ -29,11 +48,14 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: '3.x'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install transformers torch requests
+          # Install only required dependencies with minimal extras
+          pip install --no-cache-dir transformers torch --extra-index-url https://download.pytorch.org/whl/cpu
+          pip install --no-cache-dir requests
 
       - name: Run Code Review with Hugging Face Model
         id: review_code
@@ -41,17 +63,23 @@ jobs:
           python3 << 'EOL'
           from transformers import pipeline
           import os
+          import torch
           
-          # Get the prompt from environment variable
+          # Clear CUDA cache if available
+          if torch.cuda.is_available():
+              torch.cuda.empty_cache()
+          
           prompt = os.getenv('PROMPT_CONTENT')
-          
-          # Get the diff from environment variable
           diff = os.getenv('DIFF_CONTENT')
           
-          # Initialize model
-          review_model = pipeline("text-generation", model="Qwen/Qwen2.5-Coder-7B-Instruct")
+          # Initialize model with CPU and low precision
+          review_model = pipeline(
+              "text-generation", 
+              model="Qwen/Qwen2.5-Coder-7B-Instruct",
+              device_map="cpu",
+              torch_dtype=torch.float32
+          )
           
-          # Generate review
           full_prompt = f"{prompt}\n```\n{diff}\n```"
           review_comment = review_model(
               full_prompt,
@@ -60,9 +88,13 @@ jobs:
               temperature=0.7
           )[0]['generated_text']
           
-          # Save review
           with open("review_comment.txt", "w") as file:
               file.write(review_comment)
+              
+          # Clear memory
+          del review_model
+          if torch.cuda.is_available():
+              torch.cuda.empty_cache()
           EOL
         env:
           PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
