@@ -1,12 +1,16 @@
 name: Code Review
 on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
   code-review:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Get PR Diff
         id: get_diff
         run: |
@@ -17,6 +21,13 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load Review Prompt
+        id: load_prompt
+        run: |
+          echo "prompt<<EOF" >> $GITHUB_OUTPUT
+          cat review_prompt.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v3
@@ -35,10 +46,10 @@ jobs:
           from transformers import pipeline
           import os
           
-          # Define review prompt directly in the code instead of reading from file
-          prompt = """You are an expert iOS developer specializing in both SwiftUI and UIKit..."""  # Your existing prompt here
+          # Get the prompt from environment variable
+          prompt = os.getenv('PROMPT_CONTENT')
           
-          # Get the diff from the environment
+          # Get the diff from environment variable
           diff = os.getenv('DIFF_CONTENT')
           
           # Initialize model
@@ -58,6 +69,7 @@ jobs:
               file.write(review_comment)
           EOL
         env:
+          PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
           DIFF_CONTENT: ${{ steps.get_diff.outputs.diff }}
 
       - name: Add comment to Pull Request
