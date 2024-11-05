@@ -48,42 +48,69 @@ jobs:
           python3 << 'EOL'
           from transformers import pipeline
           import os
-          
-          # Get the prompt from environment variable
-          prompt = os.getenv('PROMPT_CONTENT')
-          
-          # Get the diff from environment variable
-          diff = os.getenv('DIFF_CONTENT')
-          
-          # Initialize model
+      
+          # Get the prompt and diff from environment variables
+          prompt = os.getenv('PROMPT_CONTENT', '')
+          diff = os.getenv('DIFF_CONTENT', '')
+      
+          # Log the contents of prompt and diff for debugging
+          print(f"Prompt content: {prompt[:100]}")  # Log first 100 characters for brevity
+          print(f"Diff content: {diff[:100]}")  # Log first 100 characters for brevity
+      
+          # Initialize the model pipeline
           review_model = pipeline("text-generation", model="Qwen/Qwen2.5-Coder-1.5B-Instruct", return_full_text=False)
-          
-          # Generate review
+      
+          # Construct the full prompt
           full_prompt = f"{prompt}\n```\n{diff}\n```"
-          review_comment = review_model(
-              full_prompt,
-              max_new_tokens=512,
-              num_return_sequences=1,
-              temperature=0.7
-          )[0]['generated_text']
           
-          # Save review
-          with open("review_comment.txt", "w") as file:
-              file.write(review_comment)
+          try:
+              # Generate review comment
+              review_comment = review_model(
+                  full_prompt,
+                  max_new_tokens=512,  # Adjusted to a reasonable value
+                  num_return_sequences=1,
+                  temperature=0.7
+              )[0]['generated_text']
+              
+              # Check if review_comment is empty or whitespace
+              if review_comment.strip():
+                  # Save the generated review to file
+                  with open("review_comment.txt", "w") as file:
+                      file.write(review_comment)
+                  print("Review comment generated successfully.")
+              else:
+                  print("Generated review comment is empty.")
+                  exit(1)  # Exit with error code if the comment is empty
+      
+          except Exception as e:
+              print(f"Error during model generation or file writing: {e}")
+              exit(1)  # Exit with error code if an exception occurs
+      
           EOL
         env:
           PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
           DIFF_CONTENT: ${{ steps.get_diff.outputs.diff }}
 
-      - name: Add comment to Pull Request
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('review_comment.txt', 'utf-8');
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: comment
-            })
+      - name: Check and Log Review Comment
+        run: |
+          if [[ -s "review_comment.txt" ]]; then
+            echo "Review comment file has content:"
+            cat review_comment.txt
+          else
+            echo "Review comment file is empty."
+            exit 1
+          fi
+      
+      
+            - name: Add comment to Pull Request
+              uses: actions/github-script@v6
+              with:
+                script: |
+                  const fs = require('fs');
+                  const comment = fs.readFileSync('review_comment.txt', 'utf-8');
+                  github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.payload.pull_request.number,
+                    body: comment
+                  })
