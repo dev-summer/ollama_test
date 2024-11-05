@@ -43,24 +43,25 @@ Please review focusing on these key areas:
 - NavigationStack usage
 - Sheet and full-screen cover handling
 
-Please provide your review in this format using markdown syntax:
-
-SUMMARY:
-Brief description of the changes and their purpose.
-
-CRITICAL ISSUES:
-List any issues that must be fixed before approval.
-Include file name, line number, current code, and suggested fix.
-
-IMPROVEMENTS NEEDED:
-List non-critical issues that should be addressed.
-Include file name, line number, and suggested changes.
-
-MINOR SUGGESTIONS:
-Quick fixes and style improvements.
-
-REVIEW RESULT:
-Either: Approved, Approved with minor comments, or Changes requested
 
 Your review should not include:
 - original prompt of git diff log
+
+Please provide your review in this format using markdown syntax:
+
+## SUMMARY:
+Brief description of the changes and their purpose.
+
+## CRITICAL ISSUES:
+List any issues that must be fixed before approval.
+Include file name, line number, current code, and suggested fix.
+
+## IMPROVEMENTS NEEDED:
+List non-critical issues that should be addressed.
+Include file name, line number, and suggested changes.
+
+## MINOR SUGGESTIONS:
+Quick fixes and style improvements.
+
+## REVIEW RESULT:
+Either: Approved, Approved with minor comments, or Changes requested
