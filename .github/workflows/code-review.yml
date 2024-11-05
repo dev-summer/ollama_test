@@ -3,7 +3,6 @@ on: pull_request
 permissions:
   contents: read
   pull-requests: write
-  issues: write
 
 jobs:
   code-review:
@@ -13,14 +12,15 @@ jobs:
       
       - name: Get PR Diff
         id: get_diff
-        run: |
-          PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
-          DIFF=$(gh pr diff $PR_NUMBER)
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULL_REQUEST_HEAD_REF: "${{ github.event.pull_request.head.ref }}"
+        run: |-
+          git fetch origin "${{ github.event.pull_request.head.ref }}"
+          # 안전한 diff 저장
+          git diff "origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.ref }}" > "diff.txt"
+          diff_content=$(cat "diff.txt")
+          echo "diff=${diff_content}" >> $GITHUB_OUTPUT
 
       - name: Load Review Prompt
         id: load_prompt
