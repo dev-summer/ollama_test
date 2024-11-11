@@ -36,7 +36,7 @@ Provide a clear, concise overview of the technical aspects of the changes.
 
 ## 🚨 CRITICAL TECHNICAL ISSUES
 List issues that must be fixed before approval.
-Format: [file_name:line_number]
+Format: file name/line number
 - Issue description
 - Current code
 - Suggested fix with code example
@@ -44,7 +44,7 @@ Format: [file_name:line_number]
 
 ## ⚠️ TECHNICAL IMPROVEMENTS NEEDED
 List non-critical technical issues that should be addressed.
-Format: [file_name:line_number]
+Format: file name/line number
 - Issue description
 - Suggested improvement with code example
 - Reasoning behind the suggestion
