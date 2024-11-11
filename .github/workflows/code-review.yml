@@ -50,8 +50,8 @@ jobs:
           import os
       
           # Get the prompt and diff from environment variables
-          # prompt = os.getenv('PROMPT_CONTENT', '')
-          prompt = "You are an expert iOS developer. Please review the changes made in this PR."
+          prompt = os.getenv('PROMPT_CONTENT', '')
+          # prompt = "You are an expert iOS developer. Please review the changes made in this PR."
           diff = os.getenv('DIFF_CONTENT', '')
       
           # Log the contents of prompt and diff for debugging
