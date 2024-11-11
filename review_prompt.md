@@ -18,4 +18,14 @@ Please avoid:
 - Theoretical suggestions without practical solutions
 - Original git diff log in the review
 
+REVIEW SCOPE:
+Please analyze the provided code changes focusing on these key areas:
+
+1. 📱 iOS Architecture & Patterns
+   - MVVM / Clean Architecture implementation
+   - Dependency injection practices
+   - Data flow and state management
+   - Navigation patterns
+   - SwiftUI/UIKit integration patterns
+
 Your review should be constructive, actionable, and focused on improving code quality while maintaining good iOS development practices.
