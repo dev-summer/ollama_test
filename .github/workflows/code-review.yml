@@ -89,7 +89,7 @@ jobs:
       
           EOL
         env:
-          PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
+          PROMPT_CONTENT: "${{ steps.load_prompt.outputs.prompt }}"
           DIFF_CONTENT: ${{ steps.get_diff.outputs.diff }}
 
       - name: Check and Log Review Comment
