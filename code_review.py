@@ -3,6 +3,11 @@ import sys
 from transformers import pipeline
 from huggingface_hub import snapshot_download
 import torch
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def load_environment_variables() -> dict:
     """Load and validate required environment variables."""
@@ -17,18 +22,33 @@ def load_environment_variables() -> dict:
 
 def prepare_model_cache():
     """Download and cache the model files."""
-    cache_dir = os.getenv('RUNNER_TEMP', '/tmp') + '/model_cache'
+    # Use the Hugging Face cache directory
+    cache_dir = os.getenv('HUGGINGFACE_HUB_CACHE', os.path.expanduser('~/.cache/huggingface'))
     os.makedirs(cache_dir, exist_ok=True)
     
     model_name = "Qwen/Qwen2.5-3B-Instruct"
     
-    # Download model files only if not already cached
-    if not os.path.exists(f"{cache_dir}/{model_name}"):
+    logger.info(f"Using cache directory: {cache_dir}")
+    logger.info(f"Preparing model: {model_name}")
+    
+    try:
+        # Use local files first if available
         snapshot_download(
             repo_id=model_name,
             cache_dir=cache_dir,
-            local_files_only=False
+            local_files_only=True,
+            resume_download=True
         )
+        logger.info("Model loaded from cache successfully")
+    except Exception as e:
+        logger.info(f"Cache miss or error: {e}. Downloading model...")
+        snapshot_download(
+            repo_id=model_name,
+            cache_dir=cache_dir,
+            local_files_only=False,
+            resume_download=True
+        )
+        logger.info("Model downloaded successfully")
     
     return model_name, cache_dir
 
@@ -36,6 +56,7 @@ def generate_review(prompt: str, max_tokens: int, temperature: float) -> str:
     """Generate review using the pipeline."""
     model_name, cache_dir = prepare_model_cache()
     
+    logger.info("Initializing pipeline...")
     # Initialize pipeline with optimized settings
     generator = pipeline(
         'text-generation',
@@ -48,6 +69,7 @@ def generate_review(prompt: str, max_tokens: int, temperature: float) -> str:
         }
     )
     
+    logger.info("Generating review...")
     # Generate response
     response = generator(
         prompt,
@@ -71,7 +93,7 @@ def main():
     
     # Single pipeline initialization for all reviews
     for i, (prompt_file, review_type) in enumerate(prompt_files, 1):
-        print(f"\nGenerating {review_type}...")
+        logger.info(f"\nGenerating {review_type}...")
         
         with open(prompt_file, 'r', encoding='utf-8') as f:
             prompt_content = f.read().strip()
@@ -85,15 +107,15 @@ def main():
         )
         
         if not review.strip():
-            print(f"Error: Generated {review_type} is empty")
+            logger.error(f"Error: Generated {review_type} is empty")
             sys.exit(1)
         
         with open(f"review_comment_{i}.txt", "w", encoding='utf-8') as f:
             f.write(review)
         
-        print(f"✅ {review_type} generated and saved successfully")
+        logger.info(f"✅ {review_type} generated and saved successfully")
     
-    print("\nAll reviews generated and saved successfully")
+    logger.info("\nAll reviews generated and saved successfully")
 
 if __name__ == "__main__":
     main()
