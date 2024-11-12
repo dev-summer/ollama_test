@@ -72,7 +72,7 @@ jobs:
       - name: Generate Code Review
         id: review_generation
         run: |
-          python3 ${{ github.action_path }}/code_review.py
+          python3 code_review.py
         env:
           PROMPT_CONTENT: "${{ steps.load_prompt.outputs.prompt }}"
           DIFF_CONTENT: "${{ steps.print_diff.outputs.diff }}"
