@@ -49,8 +49,7 @@ def call_inference_api(prompt, api_token, max_tokens, temperature):
             prompt,
             max_new_tokens=int(max_tokens),
             temperature=float(temperature),
-            return_full_text=False,
-            timeout=600
+            return_full_text=False
         )
         
         return response.strip()
