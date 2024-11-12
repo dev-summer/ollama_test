@@ -1,7 +1,7 @@
 import os
 import sys
-import requests
 import json
+from huggingface_hub import InferenceClient
 
 def load_environment_variables():
     """Load and validate required environment variables."""
@@ -33,27 +33,25 @@ def load_prompt(filename):
         sys.exit(1)
 
 def call_inference_api(prompt, api_token, max_tokens, temperature):
-    """Call Hugging Face Inference API."""
-    API_URL = "deepseek-ai/DeepSeek-Coder-V2-Instruct"
-    headers = {
-        "Authorization": f"Bearer {api_token}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": int(max_tokens),
-            "temperature": float(temperature),
-            "return_full_text": False,
-            "num_return_sequences": 1
-        }
-    }
+    """Call Hugging Face Inference API using InferenceClient."""
+    MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"
     
     try:
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()[0]['generated_text'].strip()
+        # Initialize the client
+        client = InferenceClient(
+            model=MODEL_ID,
+            token=api_token
+        )
+        
+        # Generate text
+        response = client.text_generation(
+            prompt,
+            max_new_tokens=int(max_tokens),
+            temperature=float(temperature),
+            return_full_text=False,
+        )
+        
+        return response.strip()
     except Exception as e:
         print(f"Error calling Hugging Face API: {e}")
         sys.exit(1)
