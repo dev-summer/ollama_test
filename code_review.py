@@ -20,7 +20,7 @@ def prepare_model_cache():
     cache_dir = os.getenv('RUNNER_TEMP', '/tmp') + '/model_cache'
     os.makedirs(cache_dir, exist_ok=True)
     
-    model_name = "Qwen/Qwen2.5-1.8B-Chat"  # Using smaller model
+    model_name = "Qwen/Qwen2.5-3B-Instruct"
     
     # Download model files only if not already cached
     if not os.path.exists(f"{cache_dir}/{model_name}"):
