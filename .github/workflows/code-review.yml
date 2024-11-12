@@ -57,7 +57,7 @@ jobs:
           DIFF_CONTENT: "${{ steps.print_diff.outputs.diff }}"
           CHANGED_FILES: "${{ steps.git_diff.outputs.changed_files }}"
           HF_API_TOKEN: "${{ secrets.HF_API_TOKEN }}"
-          MAX_TOKENS: "4000"
+          MAX_TOKENS: "2000"
           TEMPERATURE: "0.7"
 
       # Post each review comment
