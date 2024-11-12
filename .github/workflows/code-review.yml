@@ -1,104 +1,153 @@
-name: Code Review
-on: pull_request
-permissions:
-  contents: read
-  pull-requests: write
+import os
+import sys
+import json
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from typing import List, Tuple
 
-jobs:
-  code-review:
-    runs-on: ubuntu-latest
-    steps:
-      # Previous steps remain the same until review generation
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+def load_environment_variables() -> dict:
+    """Load and validate required environment variables."""
+    required_vars = {
+        'DIFF_CONTENT': 'PR diff content',
+        'CHANGED_FILES': 'List of changed files',
+        'MAX_TOKENS': 'Maximum tokens for generation',
+        'TEMPERATURE': 'Temperature for generation'
+    }
+    
+    env_vars = {}
+    for var, description in required_vars.items():
+        value = os.getenv(var)
+        if not value:
+            print(f"Error: Missing required environment variable {var} ({description})")
+            sys.exit(1)
+        env_vars[var] = value
+    
+    return env_vars
 
-      - name: Get Common Ancestor
-        id: first_commit
-        run: |
-          common_ancestor=$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
-          echo "sha=$common_ancestor" >> $GITHUB_OUTPUT
-        shell: bash
+def load_prompt(filename: str) -> str:
+    """Load a review prompt from a file."""
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except Exception as e:
+        print(f"Error loading prompt from {filename}: {e}")
+        sys.exit(1)
 
-      - name: Generate Diff
-        id: git_diff
-        run: |
-          git diff --merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- . > diff.txt
-          echo "stats<<EOF" >> $GITHUB_OUTPUT
-          git diff --stat --merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- . >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
-          git diff --name-only --merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- . >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+def format_markdown_review(review: str) -> str:
+    """Format the review in proper markdown."""
+    formatted_review = review
+    
+    # Ensure code blocks are properly formatted
+    code_block_markers = ["Current code:", "Suggested fix:", "Code example:"]
+    lines = review.split("\n")
+    formatted_lines = []
+    
+    in_code_block = False
+    for line in lines:
+        if any(marker in line for marker in code_block_markers):
+            formatted_lines.append(line)
+            formatted_lines.append("```swift")
+            in_code_block = True
+        elif in_code_block and line.strip() == "":
+            formatted_lines.append("```")
+            formatted_lines.append(line)
+            in_code_block = False
+        else:
+            formatted_lines.append(line)
+    
+    if in_code_block:
+        formatted_lines.append("```")
+    
+    return "\n".join(formatted_lines)
 
-      - name: Load Diff Content
-        id: print_diff
-        run: |
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          cat diff.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+def save_review(review: str, index: int) -> None:
+    """Save a generated review to a file."""
+    try:
+        with open(f"review_comment_{index}.txt", "w", encoding='utf-8') as f:
+            f.write(format_markdown_review(review))
+    except Exception as e:
+        print(f"Error saving review {index}: {e}")
+        sys.exit(1)
 
-      - name: Set up Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.x'
+def generate_review(model, tokenizer, prompt: str, max_tokens: int, temperature: float) -> str:
+    """Generate review using the local model."""
+    try:
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                inputs.input_ids,
+                max_new_tokens=int(max_tokens),
+                do_sample=True,
+                temperature=float(temperature),
+                pad_token_id=tokenizer.pad_token_id
+            )
+        
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # Remove the prompt from the response
+        response = response[len(prompt):].strip()
+        return response
+        
+    except Exception as e:
+        print(f"Error generating review: {e}")
+        sys.exit(1)
 
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install huggingface_hub
+def main():
+    # Load environment variables
+    env_vars = load_environment_variables()
+    
+    # Load model and tokenizer
+    print("Loading model and tokenizer...")
+    model_name = "Qwen/Qwen2.5-3B-Instruct"
+    
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            device_map="auto",
+            trust_remote_code=True,
+            torch_dtype=torch.float16  # Use fp16 to reduce memory usage
+        )
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        sys.exit(1)
+    
+    # Define prompt files and their corresponding review types
+    prompt_files: List[Tuple[str, str]] = [
+        ('architecture_review.md', '🏗 Architecture Review'),
+        ('ui_review.md', '🎨 UI Implementation Review'),
+        ('technical_review.md', '🔧 Technical Review')
+    ]
+    
+    # Process each review type
+    for i, (prompt_file, review_type) in enumerate(prompt_files, 1):
+        print(f"\nGenerating {review_type}...")
+        
+        # Load prompt content
+        prompt_content = load_prompt(prompt_file)
+        
+        # Generate full prompt with diff
+        full_prompt = f"{prompt_content}\n\nChanges to review:\n```diff\n{env_vars['DIFF_CONTENT']}\n```\n\n"
+        
+        # Generate review
+        review = generate_review(
+            model,
+            tokenizer,
+            full_prompt,
+            env_vars['MAX_TOKENS'],
+            env_vars['TEMPERATURE']
+        )
+        
+        # Validate review
+        if not review.strip():
+            print(f"Error: Generated {review_type} is empty")
+            sys.exit(1)
+        
+        # Save review
+        save_review(review, i)
+        print(f"✅ {review_type} generated and saved successfully")
+    
+    print("\nAll reviews generated and saved successfully")
 
-      - name: Generate Code Review
-        id: review_generation
-        run: |
-          python3 code_review.py
-        env:
-          DIFF_CONTENT: "${{ steps.print_diff.outputs.diff }}"
-          CHANGED_FILES: "${{ steps.git_diff.outputs.changed_files }}"
-          HF_API_TOKEN: "${{ secrets.HF_API_TOKEN }}"
-          MAX_TOKENS: "2000"
-          TEMPERATURE: "0.7"
-
-      # Post each review comment
-      - name: Post Architecture Review Comment
-        if: success()
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('review_comment_1.txt', 'utf-8');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: comment
-            });
-
-      - name: Post UI Review Comment
-        if: success()
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('review_comment_2.txt', 'utf-8');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: comment
-            });
-
-      - name: Post Technical Review Comment
-        if: success()
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('review_comment_3.txt', 'utf-8');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: comment
-            });
+if __name__ == "__main__":
+    main()
