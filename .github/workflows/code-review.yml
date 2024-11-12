@@ -13,6 +13,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Add cache for pip
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Add cache for model files
+      - name: Cache model files
+        uses: actions/cache@v3
+        id: model-cache
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ runner.os }}-model-qwen25-3b-${{ hashFiles('code_review.py') }}
+          restore-keys: |
+            ${{ runner.os }}-model-qwen25-3b-
+            ${{ runner.os }}-model-
+
       - name: Get Common Ancestor
         id: first_commit
         run: |
@@ -51,6 +71,7 @@ jobs:
 
       - name: Generate Code Review
         id: review_generation
+        timeout-minutes: 10  # Add timeout to prevent hanging
         run: |
           python3 code_review.py
         env:
@@ -58,6 +79,7 @@ jobs:
           CHANGED_FILES: "${{ steps.git_diff.outputs.changed_files }}"
           MAX_TOKENS: "2000"
           TEMPERATURE: "0.7"
+          HUGGINGFACE_HUB_CACHE: "~/.cache/huggingface"  # Specify cache location
 
       # Post each review comment
       - name: Post Architecture Review Comment
