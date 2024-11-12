@@ -34,7 +34,7 @@ def load_prompt(filename):
 
 def call_inference_api(prompt, api_token, max_tokens, temperature):
     """Call Hugging Face Inference API."""
-    API_URL = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-Coder-7B-Instruct"
+    API_URL = "deepseek-ai/DeepSeek-Coder-V2-Instruct"
     headers = {
         "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json"
