@@ -62,7 +62,7 @@ jobs:
           review_model = pipeline("text-generation", model="Qwen/Qwen2.5-Coder-1.5B-Instruct", return_full_text=False)
       
           # Construct the full prompt
-          full_prompt = f"{prompt}\n```\n{diff}\n```"
+          full_prompt = f"{prompt}\n{diff}\n"
           
           try:
               # Generate review comment
