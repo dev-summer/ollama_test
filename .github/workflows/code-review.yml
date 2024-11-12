@@ -13,25 +13,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Add cache for pip
-      - name: Cache pip dependencies
+      # Add cache for pip and model files
+      - name: Cache Dependencies
         uses: actions/cache@v3
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          path: |
+            ~/.cache/pip
+            ${{ github.workspace }}/models
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/requirements.txt') }}-v1
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-deps-
 
-      # Add cache for model files
-      - name: Cache model files
-        uses: actions/cache@v3
-        id: model-cache
-        with:
-          path: ~/.cache/huggingface
-          key: ${{ runner.os }}-model-qwen25-3b-${{ hashFiles('code_review.py') }}
-          restore-keys: |
-            ${{ runner.os }}-model-qwen25-3b-
-            ${{ runner.os }}-model-
+      - name: Create Model Directory
+        run: |
+          mkdir -p ${{ github.workspace }}/models
 
       - name: Get Common Ancestor
         id: first_commit
@@ -68,20 +63,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install torch transformers
           pip install accelerate
+          pip install sentencepiece
+
+      - name: Download Model Files
+        run: |
+          python download_model.py
 
       - name: Generate Code Review
         id: review_generation
-        timeout-minutes: 10  # Add timeout to prevent hanging
-        run: |
-          python3 code_review.py
+        timeout-minutes: 10
         env:
           DIFF_CONTENT: "${{ steps.print_diff.outputs.diff }}"
           CHANGED_FILES: "${{ steps.git_diff.outputs.changed_files }}"
           MAX_TOKENS: "2000"
           TEMPERATURE: "0.7"
-          HUGGINGFACE_HUB_CACHE: "~/.cache/huggingface"  # Specify cache location
+          MODEL_PATH: "${{ github.workspace }}/models"
+        run: |
+          python code_review.py
 
-      # Post each review comment
+      # Post review comments
       - name: Post Architecture Review Comment
         if: success()
         uses: actions/github-script@v6
