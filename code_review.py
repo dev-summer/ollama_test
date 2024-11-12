@@ -44,8 +44,7 @@ def call_inference_api_with_retry(client, prompt, max_tokens, temperature):
                 prompt,
                 max_new_tokens=int(max_tokens),
                 temperature=float(temperature),
-                return_full_text=False,
-                timeout=900  # 15 minutes timeout for the actual generation
+                return_full_text=False
             )
             return response.strip()
             
