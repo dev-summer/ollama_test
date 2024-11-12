@@ -111,7 +111,7 @@ def main():
         prompt_content = load_prompt(prompt_file)
         
         # Generate full prompt with diff
-        full_prompt = f"{prompt_content}\n\nChanges to review:\n```diff\n{env_vars['DIFF_CONTENT']}\n```\n\nPlease provide a detailed code review focusing on the specified areas:"
+        full_prompt = f"{prompt_content}\n\nChanges to review:\n```diff\n{env_vars['DIFF_CONTENT']}\n```\n\n"
         
         # Call API and generate review
         review = call_inference_api(
