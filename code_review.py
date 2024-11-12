@@ -1,7 +1,6 @@
 import os
 import sys
-from transformers import pipeline
-from huggingface_hub import snapshot_download
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 import torch
 import logging
 
@@ -15,75 +14,65 @@ def load_environment_variables() -> dict:
         'DIFF_CONTENT': 'PR diff content',
         'CHANGED_FILES': 'List of changed files',
         'MAX_TOKENS': 'Maximum tokens for generation',
-        'TEMPERATURE': 'Temperature for generation'
+        'TEMPERATURE': 'Temperature for generation',
+        'MODEL_PATH': 'Path to model files'
     }
     
     return {var: os.getenv(var) for var in required_vars if os.getenv(var)}
 
-def prepare_model_cache():
-    """Download and cache the model files."""
-    # Use the Hugging Face cache directory
-    cache_dir = os.getenv('HUGGINGFACE_HUB_CACHE', os.path.expanduser('~/.cache/huggingface'))
-    os.makedirs(cache_dir, exist_ok=True)
-    
-    model_name = "Qwen/Qwen2.5-3B-Instruct"
-    
-    logger.info(f"Using cache directory: {cache_dir}")
-    logger.info(f"Preparing model: {model_name}")
+def initialize_model(model_path: str):
+    """Initialize the model from local files."""
+    logger.info(f"Loading model from: {model_path}")
     
     try:
-        # Use local files first if available
-        snapshot_download(
-            repo_id=model_name,
-            cache_dir=cache_dir,
-            local_files_only=True,
-            resume_download=True
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            torch_dtype=torch.float16,
+            trust_remote_code=True,
+            device_map="auto",
+            low_cpu_mem_usage=True
         )
-        logger.info("Model loaded from cache successfully")
+        
+        generator = pipeline(
+            'text-generation',
+            model=model,
+            tokenizer=tokenizer,
+            device_map="auto"
+        )
+        
+        logger.info("Model loaded successfully")
+        return generator
+        
     except Exception as e:
-        logger.info(f"Cache miss or error: {e}. Downloading model...")
-        snapshot_download(
-            repo_id=model_name,
-            cache_dir=cache_dir,
-            local_files_only=False,
-            resume_download=True
-        )
-        logger.info("Model downloaded successfully")
-    
-    return model_name, cache_dir
+        logger.error(f"Error loading model: {e}")
+        raise
 
-def generate_review(prompt: str, max_tokens: int, temperature: float) -> str:
+def generate_review(generator, prompt: str, max_tokens: int, temperature: float) -> str:
     """Generate review using the pipeline."""
-    model_name, cache_dir = prepare_model_cache()
-    
-    logger.info("Initializing pipeline...")
-    # Initialize pipeline with optimized settings
-    generator = pipeline(
-        'text-generation',
-        model=model_name,
-        device_map="auto",
-        torch_dtype=torch.float16,
-        model_kwargs={
-            "cache_dir": cache_dir,
-            "low_cpu_mem_usage": True,
-        }
-    )
-    
     logger.info("Generating review...")
-    # Generate response
-    response = generator(
-        prompt,
-        max_new_tokens=int(max_tokens),
-        do_sample=True,
-        temperature=float(temperature),
-        num_return_sequences=1
-    )[0]['generated_text']
     
-    return response[len(prompt):].strip()
+    try:
+        response = generator(
+            prompt,
+            max_new_tokens=int(max_tokens),
+            do_sample=True,
+            temperature=float(temperature),
+            num_return_sequences=1
+        )[0]['generated_text']
+        
+        return response[len(prompt):].strip()
+        
+    except Exception as e:
+        logger.error(f"Error generating review: {e}")
+        raise
 
 def main():
     # Load environment variables
     env_vars = load_environment_variables()
+    
+    # Initialize model once
+    generator = initialize_model(env_vars['MODEL_PATH'])
     
     prompt_files = [
         ('architecture_review.md', '🏗 Architecture Review'),
@@ -91,7 +80,6 @@ def main():
         ('technical_review.md', '🔧 Technical Review')
     ]
     
-    # Single pipeline initialization for all reviews
     for i, (prompt_file, review_type) in enumerate(prompt_files, 1):
         logger.info(f"\nGenerating {review_type}...")
         
@@ -101,6 +89,7 @@ def main():
         full_prompt = f"{prompt_content}\n\nChanges to review:\n```diff\n{env_vars['DIFF_CONTENT']}\n```\n\n"
         
         review = generate_review(
+            generator,
             full_prompt,
             env_vars['MAX_TOKENS'],
             env_vars['TEMPERATURE']
