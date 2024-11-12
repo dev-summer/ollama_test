@@ -69,18 +69,36 @@ def save_review(review: str, index: int) -> None:
         print(f"Error saving review {index}: {e}")
         sys.exit(1)
 
+def create_attention_mask(input_ids, pad_token_id):
+    """Create attention mask for the input."""
+    return (input_ids != pad_token_id).long()
+
 def generate_review(model, tokenizer, prompt: str, max_tokens: int, temperature: float) -> str:
     """Generate review using the local model."""
     try:
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
+        # Tokenize with padding
+        inputs = tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=4096,
+            padding=True,
+            add_special_tokens=True
+        )
+        
+        # Create attention mask
+        attention_mask = create_attention_mask(inputs.input_ids, tokenizer.pad_token_id)
+        inputs['attention_mask'] = attention_mask
         
         with torch.no_grad():
             outputs = model.generate(
-                inputs.input_ids,
+                **inputs,
                 max_new_tokens=int(max_tokens),
                 do_sample=True,
                 temperature=float(temperature),
-                pad_token_id=tokenizer.pad_token_id
+                pad_token_id=tokenizer.pad_token_id,
+                eos_token_id=tokenizer.eos_token_id,
+                bos_token_id=tokenizer.bos_token_id,
             )
         
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -96,18 +114,36 @@ def main():
     # Load environment variables
     env_vars = load_environment_variables()
     
+    # Cache directory for model
+    cache_dir = os.getenv('RUNNER_TEMP', '/tmp') + '/model_cache'
+    os.makedirs(cache_dir, exist_ok=True)
+    
     # Load model and tokenizer
     print("Loading model and tokenizer...")
     model_name = "Qwen/Qwen2.5-3B-Instruct"
     
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        # Set tokenizer configurations
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=True,
+            cache_dir=cache_dir,
+            pad_token='<|endoftext|>',  # Explicitly set pad token
+            padding_side='right'
+        )
+        
+        # Set model configurations
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
             trust_remote_code=True,
-            torch_dtype=torch.float16  # Use fp16 to reduce memory usage
+            torch_dtype=torch.float16,  # Use fp16 to reduce memory usage
+            cache_dir=cache_dir,
+            low_cpu_mem_usage=True,
+            offload_folder="offload"  # Enable model offloading
         )
+        
+        print("Model and tokenizer loaded successfully!")
     except Exception as e:
         print(f"Error loading model: {e}")
         sys.exit(1)
