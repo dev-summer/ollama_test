@@ -40,7 +40,8 @@ def call_inference_api(prompt, api_token, max_tokens, temperature):
         # Initialize the client
         client = InferenceClient(
             model=MODEL_ID,
-            token=api_token
+            token=api_token,
+            timeout=600
         )
         
         # Generate text
@@ -49,6 +50,7 @@ def call_inference_api(prompt, api_token, max_tokens, temperature):
             max_new_tokens=int(max_tokens),
             temperature=float(temperature),
             return_full_text=False,
+            timeout=600
         )
         
         return response.strip()
