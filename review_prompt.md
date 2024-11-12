@@ -24,7 +24,7 @@ Review the following code changes focusing on:
 - Input validation
 - Edge cases
 
-Please provide your review in this format:
+Please provide your review in this format. The output should be in markdown syntax. Use code blocks if needed. :
 
 1. Technical Summary
 Brief overview of the changes from a technical perspective.
