@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 from huggingface_hub import InferenceClient
 
 def load_environment_variables():
@@ -32,29 +33,50 @@ def load_prompt(filename):
         print(f"Error loading prompt from {filename}: {e}")
         sys.exit(1)
 
+def call_inference_api_with_retry(client, prompt, max_tokens, temperature):
+    """Helper function to call the API with retry logic."""
+    max_retries = 5
+    base_wait_time = 10  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            response = client.text_generation(
+                prompt,
+                max_new_tokens=int(max_tokens),
+                temperature=float(temperature),
+                return_full_text=False,
+                timeout=900  # 15 minutes timeout for the actual generation
+            )
+            return response.strip()
+            
+        except Exception as e:
+            if attempt == max_retries - 1:  # Last attempt
+                raise e
+            
+            wait_time = base_wait_time * (2 ** attempt)  # Exponential backoff
+            print(f"Attempt {attempt + 1} failed with error: {str(e)}")
+            print(f"Waiting {wait_time} seconds before retrying...")
+            time.sleep(wait_time)
+            print("Retrying...")
+
 def call_inference_api(prompt, api_token, max_tokens, temperature):
     """Call Hugging Face Inference API using InferenceClient."""
     MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
     
     try:
-        # Initialize the client
+        # Initialize the client with a longer timeout
         client = InferenceClient(
             model=MODEL_ID,
             token=api_token,
-            timeout=600
+            timeout=900  # 15 minutes timeout for client operations
         )
         
-        # Generate text
-        response = client.text_generation(
-            prompt,
-            max_new_tokens=int(max_tokens),
-            temperature=float(temperature),
-            return_full_text=False
-        )
+        # Call the API with retry mechanism
+        return call_inference_api_with_retry(client, prompt, max_tokens, temperature)
         
-        return response.strip()
     except Exception as e:
         print(f"Error calling Hugging Face API: {e}")
+        print(f"Full error details: {str(e)}")
         sys.exit(1)
 
 def format_markdown_review(review):
@@ -106,6 +128,8 @@ def main():
     
     # Process each review type
     for i, (prompt_file, review_type) in enumerate(prompt_files, 1):
+        print(f"\nGenerating {review_type}...")
+        
         # Load prompt content
         prompt_content = load_prompt(prompt_file)
         
@@ -127,8 +151,9 @@ def main():
         
         # Save review
         save_review(review, i)
+        print(f"✅ {review_type} generated and saved successfully")
     
-    print("All reviews generated and saved successfully")
+    print("\nAll reviews generated and saved successfully")
 
 if __name__ == "__main__":
     main()
