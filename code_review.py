@@ -1,15 +1,14 @@
 import os
 import sys
-from transformers import pipeline
+import requests
 import json
 
 def load_environment_variables():
     """Load and validate required environment variables."""
     required_vars = {
-        'PROMPT_CONTENT': 'Review prompt content',
         'DIFF_CONTENT': 'PR diff content',
         'CHANGED_FILES': 'List of changed files',
-        'MODEL_NAME': 'HuggingFace model name',
+        'HF_API_TOKEN': 'Hugging Face API Token',
         'MAX_TOKENS': 'Maximum tokens for generation',
         'TEMPERATURE': 'Temperature for generation'
     }
@@ -24,68 +23,113 @@ def load_environment_variables():
     
     return env_vars
 
-def initialize_model(model_name):
-    """Initialize the model pipeline with error handling."""
+def load_prompt(filename):
+    """Load a review prompt from a file."""
     try:
-        return pipeline(
-            "text-generation",
-            model=model_name,
-            return_full_text=False
-        )
+        with open(filename, 'r', encoding='utf-8') as f:
+            return f.read().strip()
     except Exception as e:
-        print(f"Error initializing model: {e}")
+        print(f"Error loading prompt from {filename}: {e}")
         sys.exit(1)
 
-def generate_review(model, prompt, diff, max_tokens, temperature):
-    """Generate code review using the model."""
+def call_inference_api(prompt, api_token, max_tokens, temperature):
+    """Call Hugging Face Inference API."""
+    API_URL = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-Coder-7B-Instruct"
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": int(max_tokens),
+            "temperature": float(temperature),
+            "return_full_text": False,
+            "num_return_sequences": 1
+        }
+    }
+    
     try:
-        full_prompt = f"{prompt}\n\nChanges to review:\n```diff\n{diff}\n```\n\nPlease provide a detailed code review:"
-        
-        review = model(
-            full_prompt,
-            max_new_tokens=int(max_tokens),
-            num_return_sequences=1,
-            temperature=float(temperature)
-        )[0]['generated_text']
-        
-        return review.strip()
+        response = requests.post(API_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()[0]['generated_text'].strip()
     except Exception as e:
-        print(f"Error generating review: {e}")
+        print(f"Error calling Hugging Face API: {e}")
         sys.exit(1)
 
-def save_review(review):
-    """Save the generated review to a file."""
+def format_markdown_review(review):
+    """Format the review in proper markdown."""
+    formatted_review = review
+    
+    # Ensure code blocks are properly formatted
+    code_block_markers = ["Current code:", "Suggested fix:", "Code example:"]
+    lines = review.split("\n")
+    formatted_lines = []
+    
+    in_code_block = False
+    for line in lines:
+        if any(marker in line for marker in code_block_markers):
+            formatted_lines.append(line)
+            formatted_lines.append("```swift")
+            in_code_block = True
+        elif in_code_block and line.strip() == "":
+            formatted_lines.append("```")
+            formatted_lines.append(line)
+            in_code_block = False
+        else:
+            formatted_lines.append(line)
+    
+    if in_code_block:
+        formatted_lines.append("```")
+    
+    return "\n".join(formatted_lines)
+
+def save_review(review, index):
+    """Save a generated review to a file."""
     try:
-        with open("review_comment.txt", "w", encoding='utf-8') as f:
-            f.write(review)
+        with open(f"review_comment_{index}.txt", "w", encoding='utf-8') as f:
+            f.write(format_markdown_review(review))
     except Exception as e:
-        print(f"Error saving review: {e}")
+        print(f"Error saving review {index}: {e}")
         sys.exit(1)
 
 def main():
     # Load environment variables
     env_vars = load_environment_variables()
     
-    # Initialize model
-    model = initialize_model(env_vars['MODEL_NAME'])
+    # Define prompt files and their corresponding review types
+    prompt_files = [
+        ('architecture_review.md', '🏗 Architecture Review'),
+        ('ui_review.md', '🎨 UI Implementation Review'),
+        ('technical_review.md', '🔧 Technical Review')
+    ]
     
-    # Generate review
-    review = generate_review(
-        model,
-        env_vars['PROMPT_CONTENT'],
-        env_vars['DIFF_CONTENT'],
-        env_vars['MAX_TOKENS'],
-        env_vars['TEMPERATURE']
-    )
+    # Process each review type
+    for i, (prompt_file, review_type) in enumerate(prompt_files, 1):
+        # Load prompt content
+        prompt_content = load_prompt(prompt_file)
+        
+        # Generate full prompt with diff
+        full_prompt = f"{prompt_content}\n\nChanges to review:\n```diff\n{env_vars['DIFF_CONTENT']}\n```\n\nPlease provide a detailed code review focusing on the specified areas:"
+        
+        # Call API and generate review
+        review = call_inference_api(
+            full_prompt,
+            env_vars['HF_API_TOKEN'],
+            env_vars['MAX_TOKENS'],
+            env_vars['TEMPERATURE']
+        )
+        
+        # Validate review
+        if not review.strip():
+            print(f"Error: Generated {review_type} is empty")
+            sys.exit(1)
+        
+        # Save review
+        save_review(review, i)
     
-    # Validate review content
-    if not review.strip():
-        print("Error: Generated review is empty")
-        sys.exit(1)
-    
-    # Save review
-    save_review(review)
-    print("Review generated and saved successfully")
+    print("All reviews generated and saved successfully")
 
 if __name__ == "__main__":
     main()
