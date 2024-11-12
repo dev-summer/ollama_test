@@ -1,15 +1,15 @@
 import os
 import sys
 import json
-import time
-from huggingface_hub import InferenceClient
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from typing import List, Tuple
 
-def load_environment_variables():
+def load_environment_variables() -> dict:
     """Load and validate required environment variables."""
     required_vars = {
         'DIFF_CONTENT': 'PR diff content',
         'CHANGED_FILES': 'List of changed files',
-        'HF_API_TOKEN': 'Hugging Face API Token',
         'MAX_TOKENS': 'Maximum tokens for generation',
         'TEMPERATURE': 'Temperature for generation'
     }
@@ -24,7 +24,7 @@ def load_environment_variables():
     
     return env_vars
 
-def load_prompt(filename):
+def load_prompt(filename: str) -> str:
     """Load a review prompt from a file."""
     try:
         with open(filename, 'r', encoding='utf-8') as f:
@@ -33,52 +33,7 @@ def load_prompt(filename):
         print(f"Error loading prompt from {filename}: {e}")
         sys.exit(1)
 
-def call_inference_api_with_retry(client, prompt, max_tokens, temperature):
-    """Helper function to call the API with retry logic."""
-    max_retries = 5
-    base_wait_time = 10  # seconds
-    
-    for attempt in range(max_retries):
-        try:
-            response = client.text_generation(
-                prompt,
-                max_new_tokens=int(max_tokens),
-                temperature=float(temperature),
-                return_full_text=False
-            )
-            return response.strip()
-            
-        except Exception as e:
-            if attempt == max_retries - 1:  # Last attempt
-                raise e
-            
-            wait_time = base_wait_time * (2 ** attempt)  # Exponential backoff
-            print(f"Attempt {attempt + 1} failed with error: {str(e)}")
-            print(f"Waiting {wait_time} seconds before retrying...")
-            time.sleep(wait_time)
-            print("Retrying...")
-
-def call_inference_api(prompt, api_token, max_tokens, temperature):
-    """Call Hugging Face Inference API using InferenceClient."""
-    MODEL_ID = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-    
-    try:
-        # Initialize the client with a longer timeout
-        client = InferenceClient(
-            model=MODEL_ID,
-            token=api_token,
-            timeout=900  # 15 minutes timeout for client operations
-        )
-        
-        # Call the API with retry mechanism
-        return call_inference_api_with_retry(client, prompt, max_tokens, temperature)
-        
-    except Exception as e:
-        print(f"Error calling Hugging Face API: {e}")
-        print(f"Full error details: {str(e)}")
-        sys.exit(1)
-
-def format_markdown_review(review):
+def format_markdown_review(review: str) -> str:
     """Format the review in proper markdown."""
     formatted_review = review
     
@@ -105,7 +60,7 @@ def format_markdown_review(review):
     
     return "\n".join(formatted_lines)
 
-def save_review(review, index):
+def save_review(review: str, index: int) -> None:
     """Save a generated review to a file."""
     try:
         with open(f"review_comment_{index}.txt", "w", encoding='utf-8') as f:
@@ -114,12 +69,51 @@ def save_review(review, index):
         print(f"Error saving review {index}: {e}")
         sys.exit(1)
 
+def generate_review(model, tokenizer, prompt: str, max_tokens: int, temperature: float) -> str:
+    """Generate review using the local model."""
+    try:
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                inputs.input_ids,
+                max_new_tokens=int(max_tokens),
+                do_sample=True,
+                temperature=float(temperature),
+                pad_token_id=tokenizer.pad_token_id
+            )
+        
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # Remove the prompt from the response
+        response = response[len(prompt):].strip()
+        return response
+        
+    except Exception as e:
+        print(f"Error generating review: {e}")
+        sys.exit(1)
+
 def main():
     # Load environment variables
     env_vars = load_environment_variables()
     
+    # Load model and tokenizer
+    print("Loading model and tokenizer...")
+    model_name = "Qwen/Qwen2.5-3B-Instruct"
+    
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            device_map="auto",
+            trust_remote_code=True,
+            torch_dtype=torch.float16  # Use fp16 to reduce memory usage
+        )
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        sys.exit(1)
+    
     # Define prompt files and their corresponding review types
-    prompt_files = [
+    prompt_files: List[Tuple[str, str]] = [
         ('architecture_review.md', '🏗 Architecture Review'),
         ('ui_review.md', '🎨 UI Implementation Review'),
         ('technical_review.md', '🔧 Technical Review')
@@ -135,10 +129,11 @@ def main():
         # Generate full prompt with diff
         full_prompt = f"{prompt_content}\n\nChanges to review:\n```diff\n{env_vars['DIFF_CONTENT']}\n```\n\n"
         
-        # Call API and generate review
-        review = call_inference_api(
+        # Generate review
+        review = generate_review(
+            model,
+            tokenizer,
             full_prompt,
-            env_vars['HF_API_TOKEN'],
             env_vars['MAX_TOKENS'],
             env_vars['TEMPERATURE']
         )
