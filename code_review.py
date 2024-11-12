@@ -34,7 +34,7 @@ def load_prompt(filename):
 
 def call_inference_api(prompt, api_token, max_tokens, temperature):
     """Call Hugging Face Inference API using InferenceClient."""
-    MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"
+    MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
     
     try:
         # Initialize the client
