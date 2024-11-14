@@ -3,123 +3,84 @@ on: pull_request
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 jobs:
   code-review:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Add cache for pip and model files
-      - name: Cache Dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/pip
-            ${{ github.workspace }}/models
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/requirements.txt') }}-v1
-          restore-keys: |
-            ${{ runner.os }}-deps-
-
-      - name: Create Model Directory
+      - uses: actions/checkout@v4
+      
+      - name: Get PR Diff
+        id: get_diff
         run: |
-          mkdir -p ${{ github.workspace }}/models
-
-      - name: Get Common Ancestor
-        id: first_commit
-        run: |
-          common_ancestor=$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
-          echo "sha=$common_ancestor" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Generate Diff
-        id: git_diff
-        run: |
-          git diff --merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- . > diff.txt
-          echo "stats<<EOF" >> $GITHUB_OUTPUT
-          git diff --stat --merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- . >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
-          git diff --name-only --merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} -- . >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Load Diff Content
-        id: print_diff
-        run: |
+          PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
+          DIFF=$(gh pr diff $PR_NUMBER)
           echo "diff<<EOF" >> $GITHUB_OUTPUT
-          cat diff.txt >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load Review Prompt
+        id: load_prompt
+        run: |
+          echo "prompt<<EOF" >> $GITHUB_OUTPUT
+          cat archcitecture_review.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: '3.10'
+          python-version: '3.x'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install torch transformers
-          pip install accelerate
-          pip install sentencepiece
+          pip install transformers torch requests
 
-      - name: Download Model Files
+      - name: Run Code Review with Hugging Face Model
+        id: review_code
         run: |
-          python download_model.py
-
-      - name: Generate Code Review
-        id: review_generation
-        timeout-minutes: 10
+          python3 << 'EOL'
+          from transformers import pipeline
+          import os
+          
+          # Get the prompt from environment variable
+          prompt = os.getenv('PROMPT_CONTENT')
+          
+          # Get the diff from environment variable
+          diff = os.getenv('DIFF_CONTENT')
+          
+          # Initialize model
+          review_model = pipeline("text-generation", model="Qwen/Qwen2.5-3B-Instruct")
+          
+          # Generate review
+          full_prompt = f"{prompt}\n```\n{diff}\n```"
+          review_comment = review_model(
+              full_prompt,
+              max_length=2000,
+              num_return_sequences=1,
+              temperature=0.7
+          )[0]['generated_text']
+          
+          # Save review
+          with open("review_comment.txt", "w") as file:
+              file.write(review_comment)
+          EOL
         env:
-          DIFF_CONTENT: "${{ steps.print_diff.outputs.diff }}"
-          CHANGED_FILES: "${{ steps.git_diff.outputs.changed_files }}"
-          MAX_TOKENS: "2000"
-          TEMPERATURE: "0.7"
-          MODEL_PATH: "${{ github.workspace }}/models"
-        run: |
-          python code_review.py
+          PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
+          DIFF_CONTENT: ${{ steps.get_diff.outputs.diff }}
 
-      # Post review comments
-      - name: Post Architecture Review Comment
-        if: success()
+      - name: Add comment to Pull Request
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require('fs');
-            const comment = fs.readFileSync('review_comment_1.txt', 'utf-8');
-            await github.rest.issues.createComment({
+            const comment = fs.readFileSync('review_comment.txt', 'utf-8');
+            github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
               body: comment
-            });
-
-      - name: Post UI Review Comment
-        if: success()
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('review_comment_2.txt', 'utf-8');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: comment
-            });
-
-      - name: Post Technical Review Comment
-        if: success()
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('review_comment_3.txt', 'utf-8');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: comment
-            });
+            })
