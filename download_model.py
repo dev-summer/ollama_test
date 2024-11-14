@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def download_model():
     """Download and save the model files locally."""
-    model_name = "Qwen/Qwen2.5-3B-Instruct"
+    model_name = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
     model_path = os.path.join(os.getenv('MODEL_PATH', 'models'))
     
     logger.info(f"Downloading model to: {model_path}")
