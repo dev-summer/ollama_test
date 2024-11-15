@@ -10,18 +10,10 @@ jobs:
     runs-on: self-hosted
     env:
       TRANSFORMERS_CACHE: /Users/lee.jiyoung/.cache/huggingface
+      VIRTUAL_ENV: /Users/lee.jiyoung/actions-runner/.venv
+      PATH: /Users/lee.jiyoung/actions-runner/.venv/bin:${{ env.PATH }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Dependencies
-        run: |
-          brew install jp gh
-
-      - name: Configure CLI
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" > ~/.gh_token
-          gh auth login --with-token < ~/.gh_token
-          rm ~/.gh_token
       
       - name: Get PR Diff
         id: get_diff
@@ -41,16 +33,6 @@ jobs:
           cat ui_review.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Set up Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.x'
-
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install transformers torch requests
-
       - name: Run Code Review with Hugging Face Model
         id: review_code
         run: |
@@ -58,9 +40,6 @@ jobs:
           from transformers import pipeline
           import os
           import torch
-
-          # Set cache directory explicitly
-          os.environ['TRANSFORMERS_CACHE'] = '/Users/lee.jiyoung/.cache/huggingface'
           
           # Get the prompt from environment variable
           prompt = os.getenv('PROMPT_CONTENT')
