@@ -51,7 +51,12 @@ jobs:
           diff = os.getenv('DIFF_CONTENT')
           
           # Initialize model
-          review_model = pipeline("text-generation", model="Qwen/Qwen2.5-Coder-7B-Instruct", return_full_text=False)
+          review_model = pipeline(
+            "text-generation",
+            model="Qwen/Qwen2.5-Coder-7B-Instruct",
+            return_full_text=False,
+            device='mps' if torch.backends.mps.is_available() else 'cpu'
+          )
           
           # Generate review
           full_prompt = f"{prompt}\n```\n{diff}\n```"
@@ -75,7 +80,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const comment = fs.readFileSync('review_comment.txt', 'utf-8');
+            const comment = fs.readFileSync('review_comment.md', 'utf-8');
             github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
