@@ -7,7 +7,7 @@ permissions:
 
 jobs:
   code-review:
-    runs-on: ubuntu-latest
+    runs-on: jiyoungMacBook
     steps:
       - uses: actions/checkout@v4
       
@@ -53,7 +53,7 @@ jobs:
           diff = os.getenv('DIFF_CONTENT')
           
           # Initialize model
-          review_model = pipeline("text-generation", model="Qwen/Qwen2.5-3B-Instruct", return_full_text=False)
+          review_model = pipeline("text-generation", model="Qwen/Qwen2.5-Coder-7B-Instruct", return_full_text=False)
           
           # Generate review
           full_prompt = f"{prompt}\n```\n{diff}\n```"
@@ -65,7 +65,7 @@ jobs:
           )[0]['generated_text']
           
           # Save review
-          with open("review_comment.txt", "w") as file:
+          with open("review_comment.md", "w") as file:
               file.write(review_comment)
           EOL
         env:
