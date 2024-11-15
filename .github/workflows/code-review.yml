@@ -11,7 +11,7 @@ jobs:
     env:
       TRANSFORMERS_CACHE: /Users/lee.jiyoung/.cache/huggingface
       VIRTUAL_ENV: /Users/lee.jiyoung/actions-runner/.venv
-      PATH: /Users/lee.jiyoung/actions-runner/.venv/bin:${{ env.PATH }}
+      PATH: /Users/lee.jiyoung/actions-runner/.venv/bin:/usr/local/bin:/usr/bin:/bin
     steps:
       - uses: actions/checkout@v4
       
