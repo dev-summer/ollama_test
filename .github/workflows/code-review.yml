@@ -1,177 +1,50 @@
-name: Code Review
-on: pull_request
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   code-review:
     runs-on: self-hosted
+    
     env:
-      TRANSFORMERS_CACHE: /Users/lee.jiyoung/.cache/huggingface
-      VIRTUAL_ENV: /Users/lee.jiyoung/actions-runner/.venv
-      PATH: /opt/homebrew/bin:/Users/lee.jiyoung/actions-runner/.venv/bin:/usr/bin:/bin:/usr/sbin:/sbin
-      TOKENIZERS_PARALLELISM: false
+      HF_HOME: ~/.cache/huggingface  # Cache directory for models
+      
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get PR Diff
-        id: get_diff
+        with:
+          fetch-depth: 0  # Required to get the changed files
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Cache HuggingFace models
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-${{ runner.os }}-${{ hashFiles('**/*.py') }}
+          restore-keys: |
+            huggingface-${{ runner.os }}-
+            
+      - name: Install dependencies
         run: |
-          PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
-          DIFF=$(gh pr diff $PR_NUMBER)
-          echo "diff<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          python -m pip install --upgrade pip
+          pip install torch transformers accelerate
+          
+      - name: Get changed files
+        id: changed-files
+        run: |
+          echo "CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | tr '\n' ' ')" >> $GITHUB_ENV
+          
+      - name: Generate code review
+        run: |
+          python .github/scripts/generate_review.py \
+            --model "Qwen/Qwen2.5-Coder-7B-Instruct" \
+            --prompt-template ".github/templates/ui_review.md" \
+            --output-template ".github/templates/review_format.md" \
+            --files "$CHANGED_FILES"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Load Review Prompt
-        id: load_prompt
-        run: |
-          if [ ! -f "ui_review.md" ]; then
-            echo "Error: ui_review.md file not found"
-            exit 1
-          fi
-          echo "prompt<<EOF" >> $GITHUB_OUTPUT
-          cat ui_review.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Run Code Review with Hugging Face Model
-        id: review_code
-        env:
-          PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
-          DIFF_CONTENT: ${{ steps.get_diff.outputs.diff }}
-          TOKENIZERS_PARALLELISM: false
-        run: |
-          # Verify environment variables
-          if [ -z "$PROMPT_CONTENT" ]; then
-            echo "Error: PROMPT_CONTENT is empty"
-            exit 1
-          fi
-          if [ -z "$DIFF_CONTENT" ]; then
-            echo "Error: DIFF_CONTENT is empty"
-            exit 1
-          fi
-          
-          # Activate virtual environment
-          source /Users/lee.jiyoung/actions-runner/.venv/bin/activate
-          
-          python3 << 'EOL'
-          from transformers import pipeline
-          import os
-          import torch
-          import sys
-          import logging
-          
-          # Set up logging
-          logging.basicConfig(level=logging.INFO)
-          logger = logging.getLogger(__name__)
-          
-          try:
-              # Get the prompt from environment variable
-              prompt = os.getenv('PROMPT_CONTENT')
-              if not prompt:
-                  raise ValueError("Prompt content is empty")
-              logger.info("Loaded prompt content")
-              
-              # Get the diff from environment variable
-              diff = os.getenv('DIFF_CONTENT')
-              if not diff:
-                  raise ValueError("Diff content is empty")
-              logger.info("Loaded diff content")
-              
-              # Initialize model with logging
-              logger.info("Initializing model...")
-              review_model = pipeline(
-                  "text-generation", 
-                  model="Qwen/Qwen2.5-Coder-7B-Instruct",
-                  return_full_text=False,
-                  device='mps' if torch.backends.mps.is_available() else 'cpu',
-                  model_kwargs={"temperature": 0.7}
-              )
-              logger.info("Model initialized successfully")
-              
-              # Generate review with better error handling
-              full_prompt = f"당신은 expert iOS developer입니다. 아래의 코드 변경사항을 검토하고, 리뷰해주세요.\n```\n{diff}\n```"
-              logger.info("Generating review...")
-              
-              review_comment = review_model(
-                  full_prompt,
-                  max_new_tokens=4000,
-                  num_return_sequences=1,
-                  temperature=0.7,
-                  do_sample=True,
-                  top_p=0.9,
-                  repetition_penalty=1.2
-              )[0]['generated_text']
-              
-              if not review_comment or len(review_comment.strip()) == 0:
-                  logger.error("Generated review is empty")
-                  raise ValueError("Generated review is empty")
-              
-              logger.info(f"Generated review with length: {len(review_comment)}")
-              
-              # Save review
-              with open("review_comment.md", "w") as file:
-                  file.write(review_comment)
-              logger.info("Saved review to file")
-              
-              # Verify file was written
-              with open("review_comment.md", "r") as file:
-                  content = file.read()
-                  if not content or len(content.strip()) == 0:
-                      raise ValueError("Review comment file is empty after writing")
-              
-              logger.info("Successfully completed review generation process")
-              
-          except Exception as e:
-              logger.error(f"Error occurred: {str(e)}")
-              print(f"Error occurred: {str(e)}", file=sys.stderr)
-              sys.exit(1)
-          EOL
-
-      - name: Verify Review Comment File
-        run: |
-          if [ ! -f "review_comment.md" ]; then
-              echo "Error: review_comment.md file does not exist"
-              exit 1
-          fi
-          
-          if [ ! -s "review_comment.md" ]; then
-              echo "Error: review_comment.md file is empty"
-              exit 1
-          fi
-          
-          echo "Review comment file exists and is not empty"
-          cat review_comment.md
-
-      - name: Add comment to Pull Request
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            try {
-              if (!fs.existsSync('review_comment.md')) {
-                throw new Error('review_comment.md file does not exist');
-              }
-              
-              const comment = fs.readFileSync('review_comment.md', 'utf-8');
-              
-              if (!comment || comment.trim().length === 0) {
-                throw new Error('Review comment is empty');
-              }
-              
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body: comment
-              });
-              
-              console.log('Successfully posted review comment');
-            } catch (error) {
-              console.error('Error:', error.message);
-              core.setFailed(error.message);
-            }
