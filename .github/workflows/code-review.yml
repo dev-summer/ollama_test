@@ -94,7 +94,7 @@ jobs:
               logger.info("Model initialized successfully")
               
               # Generate review with better error handling
-              full_prompt = f"{prompt}\n```\n{diff}\n```"
+              full_prompt = f"당신은 expert iOS developer입니다. 아래의 코드 변경사항을 검토하고, 리뷰해주세요.\n```\n{diff}\n```"
               logger.info("Generating review...")
               
               review_comment = review_model(
