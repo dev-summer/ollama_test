@@ -9,30 +9,41 @@ jobs:
     runs-on: self-hosted
     
     env:
-      HF_HOME: ~/.cache/huggingface  # Cache directory for models
+      HF_HOME: ${{ github.workspace }}/.cache/huggingface  # Changed to workspace-relative path
+      PYTHONPATH: ${{ github.workspace }}
       
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required to get the changed files
+          fetch-depth: 0
           
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+      # Use system Python instead of actions/setup-python
+      - name: Set up Python environment
+        run: |
+          # Create virtual environment in the workspace
+          python3 -m venv ${{ github.workspace }}/.venv
+          echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
           
+          # Activate virtual environment
+          source ${{ github.workspace }}/.venv/bin/activate
+          
+          # Upgrade pip and install dependencies
+          python -m pip install --upgrade pip
+          pip install torch transformers accelerate PyGithub
+        
       - name: Cache HuggingFace models
         uses: actions/cache@v3
         with:
-          path: ~/.cache/huggingface
+          path: ${{ github.workspace }}/.cache/huggingface
           key: huggingface-${{ runner.os }}-${{ hashFiles('**/*.py') }}
           restore-keys: |
             huggingface-${{ runner.os }}-
             
-      - name: Install dependencies
+      - name: Create necessary directories
         run: |
-          python -m pip install --upgrade pip
-          pip install torch transformers accelerate
+          mkdir -p ${{ github.workspace }}/.cache/huggingface
+          mkdir -p ${{ github.workspace }}/.github/scripts
+          mkdir -p ${{ github.workspace }}/.github/templates
           
       - name: Get changed files
         id: changed-files
@@ -41,9 +52,10 @@ jobs:
           
       - name: Generate code review
         run: |
+          source ${{ github.workspace }}/.venv/bin/activate
           python .github/scripts/generate_review.py \
             --model "Qwen/Qwen2.5-Coder-7B-Instruct" \
-            --prompt-template ".github/templates/ui_review.md" \
+            --prompt-template ".github/templates/review_prompt.md" \
             --output-template ".github/templates/review_format.md" \
             --files "$CHANGED_FILES"
         env:
