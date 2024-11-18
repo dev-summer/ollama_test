@@ -29,14 +29,31 @@ jobs:
       - name: Load Review Prompt
         id: load_prompt
         run: |
+          if [ ! -f "ui_review.md" ]; then
+            echo "Error: ui_review.md file not found"
+            exit 1
+          fi
           echo "prompt<<EOF" >> $GITHUB_OUTPUT
           cat ui_review.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run Code Review with Hugging Face Model
         id: review_code
+        env:
+          PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
+          DIFF_CONTENT: ${{ steps.get_diff.outputs.diff }}
         run: |
-          # 가상환경 활성화
+          # Verify environment variables
+          if [ -z "$PROMPT_CONTENT" ]; then
+            echo "Error: PROMPT_CONTENT is empty"
+            exit 1
+          fi
+          if [ -z "$DIFF_CONTENT" ]; then
+            echo "Error: DIFF_CONTENT is empty"
+            exit 1
+          fi
+          
+          # Activate virtual environment
           source /Users/lee.jiyoung/actions-runner/.venv/bin/activate
           
           python3 << 'EOL'
