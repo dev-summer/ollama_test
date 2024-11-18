@@ -17,11 +17,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Explicitly specify Python 3.10 path and create virtual environment
+      # Find and use Python 3.10
       - name: Set up Python environment
         run: |
-          # Create virtual environment using Python 3.10
-          /usr/local/opt/python@3.10/bin/python3.10 -m venv ${{ github.workspace }}/.venv
+          # First, try to find Python 3.10
+          echo "Checking Python installations..."
+          
+          if command -v python3.10 &> /dev/null; then
+            PYTHON_CMD=python3.10
+          elif [ -f "/opt/homebrew/bin/python3.10" ]; then
+            PYTHON_CMD=/opt/homebrew/bin/python3.10
+          elif [ -f "/usr/local/bin/python3.10" ]; then
+            PYTHON_CMD=/usr/local/bin/python3.10
+          else
+            echo "Python 3.10 not found. Installing via Homebrew..."
+            brew install python@3.10
+            PYTHON_CMD=/opt/homebrew/bin/python3.10
+          fi
+          
+          echo "Using Python at: $(which $PYTHON_CMD)"
+          echo "Python version: $($PYTHON_CMD --version)"
+          
+          # Create virtual environment
+          $PYTHON_CMD -m venv ${{ github.workspace }}/.venv
           echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
           
           # Activate virtual environment
