@@ -14,7 +14,7 @@ jobs:
       PATH: /opt/homebrew/bin:/Users/lee.jiyoung/actions-runner/.venv/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Get PR Diff
         id: get_diff
         run: |
@@ -43,47 +43,96 @@ jobs:
           from transformers import pipeline
           import os
           import torch
+          import sys
           
-          # Get the prompt from environment variable
-          prompt = os.getenv('PROMPT_CONTENT')
-          
-          # Get the diff from environment variable
-          diff = os.getenv('DIFF_CONTENT')
-          
-          # Initialize model
-          review_model = pipeline(
-            "text-generation",
-            model="Qwen/Qwen2.5-Coder-7B-Instruct",
-            return_full_text=False,
-            device='mps' if torch.backends.mps.is_available() else 'cpu'
-          )
-          
-          # Generate review
-          full_prompt = f"{prompt}\n```\n{diff}\n```"
-          review_comment = review_model(
-              full_prompt,
-              max_new_tokens=3000,
-              num_return_sequences=1,
-              temperature=0.7
-          )[0]['generated_text']
-          
-          # Save review
-          with open("review_comment.md", "w") as file:
-              file.write(review_comment)
+          try:
+              # Get the prompt from environment variable
+              prompt = os.getenv('PROMPT_CONTENT')
+              if not prompt:
+                  raise ValueError("Prompt content is empty")
+              
+              # Get the diff from environment variable
+              diff = os.getenv('DIFF_CONTENT')
+              if not diff:
+                  raise ValueError("Diff content is empty")
+              
+              # Initialize model
+              review_model = pipeline(
+                  "text-generation", 
+                  model="Qwen/Qwen2.5-Coder-7B-Instruct",
+                  return_full_text=False,
+                  device='mps' if torch.backends.mps.is_available() else 'cpu'
+              )
+              
+              # Generate review
+              full_prompt = f"{prompt}\n```\n{diff}\n```"
+              review_comment = review_model(
+                  full_prompt,
+                  max_new_tokens=3000,
+                  num_return_sequences=1,
+                  temperature=0.7
+              )[0]['generated_text']
+              
+              if not review_comment or len(review_comment.strip()) == 0:
+                  raise ValueError("Generated review is empty")
+              
+              # Save review
+              with open("review_comment.md", "w") as file:
+                  file.write(review_comment)
+              
+              # Verify file was written
+              with open("review_comment.md", "r") as file:
+                  content = file.read()
+                  if not content or len(content.strip()) == 0:
+                      raise ValueError("Review comment file is empty after writing")
+              
+              print("Successfully generated and saved review comment")
+              
+          except Exception as e:
+              print(f"Error occurred: {str(e)}", file=sys.stderr)
+              sys.exit(1)
           EOL
-        env:
-          PROMPT_CONTENT: ${{ steps.load_prompt.outputs.prompt }}
-          DIFF_CONTENT: ${{ steps.get_diff.outputs.diff }}
+
+      - name: Verify Review Comment File
+        run: |
+          if [ ! -f "review_comment.md" ]; then
+              echo "Error: review_comment.md file does not exist"
+              exit 1
+          fi
+          
+          if [ ! -s "review_comment.md" ]; then
+              echo "Error: review_comment.md file is empty"
+              exit 1
+          fi
+          
+          echo "Review comment file exists and is not empty"
+          cat review_comment.md
 
       - name: Add comment to Pull Request
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require('fs');
-            const comment = fs.readFileSync('review_comment.md', 'utf-8');
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: comment
-            })
+            try {
+              if (!fs.existsSync('review_comment.md')) {
+                throw new Error('review_comment.md file does not exist');
+              }
+              
+              const comment = fs.readFileSync('review_comment.md', 'utf-8');
+              
+              if (!comment || comment.trim().length === 0) {
+                throw new Error('Review comment is empty');
+              }
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: comment
+              });
+              
+              console.log('Successfully posted review comment');
+            } catch (error) {
+              console.error('Error:', error.message);
+              core.setFailed(error.message);
+            }
