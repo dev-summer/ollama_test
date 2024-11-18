@@ -9,27 +9,33 @@ jobs:
     runs-on: self-hosted
     
     env:
-      HF_HOME: ${{ github.workspace }}/.cache/huggingface  # Changed to workspace-relative path
+      HF_HOME: ${{ github.workspace }}/.cache/huggingface
       PYTHONPATH: ${{ github.workspace }}
       
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
-      # Use system Python instead of actions/setup-python
+
+      # Explicitly specify Python 3.10 path and create virtual environment
       - name: Set up Python environment
         run: |
-          # Create virtual environment in the workspace
-          python3 -m venv ${{ github.workspace }}/.venv
+          # Create virtual environment using Python 3.10
+          /usr/local/opt/python@3.10/bin/python3.10 -m venv ${{ github.workspace }}/.venv
           echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
           
           # Activate virtual environment
           source ${{ github.workspace }}/.venv/bin/activate
           
-          # Upgrade pip and install dependencies
+          # Print Python version for verification
+          python --version
+          
+          # Upgrade pip
           python -m pip install --upgrade pip
-          pip install torch transformers accelerate PyGithub
+          
+          # Install PyTorch and other dependencies
+          pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
+          pip3 install transformers accelerate PyGithub
         
       - name: Cache HuggingFace models
         uses: actions/cache@v3
