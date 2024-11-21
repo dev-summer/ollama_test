@@ -32,6 +32,8 @@ jobs:
       - name: Run AI Code Review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 .github/scripts/ai_code_review.py
+        run: |
+          source .env/bin/activate
+          python3 .github/scripts/ai_code_review.py
 
 # End of file. No additional code.
