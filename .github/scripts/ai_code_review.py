@@ -28,8 +28,8 @@ repo = g.get_repo(repo_name)
 pr = repo.get_pull(pr_number)
 
 # Set up AI model
-model_path = '~/.cache/huggingface/models--Qwen--Qwen2.5-Coder-7B-Instruct'
-reviewer = pipeline('text-generation', model=model_path)
+model_id = "Qwen/Qwen2.5-Coder-7B-Instruct"
+reviewer = pipeline('text-generation', model=model_id)
 
 # Get changed files
 changed_files = [file.filename for file in pr.get_files()]
