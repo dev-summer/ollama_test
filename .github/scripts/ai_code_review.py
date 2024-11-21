@@ -48,7 +48,7 @@ with open('.github/template/review_format.md', 'r') as f:
 # Function to generate review
 def generate_review(prompt, changes):
     input_text = f"{prompt}\n\nChanged files:\n{changes}"
-    response = reviewer(input_text)
+    response = reviewer(input_text, max_new_tokens=1000)
     return response[0]['generated_text']
 
 # Generate and post reviews
