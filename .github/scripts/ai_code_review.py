@@ -32,7 +32,6 @@ model_id = "Qwen/Qwen2.5-Coder-7B-Instruct"
 reviewer = pipeline(
     'text-generation',
     model=model_id,
-    max_new_token=2000,
     device_map="auto"
 )
 
