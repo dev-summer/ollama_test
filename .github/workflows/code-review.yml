@@ -26,12 +26,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install transformers torch
+          pip3 -m pip install --upgrade pip
+          pip3 install transformers torch
 
       - name: Run AI Code Review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python .github/scripts/ai_code_review.py
+        run: pip3 .github/scripts/ai_code_review.py
 
 # End of file. No additional code.
