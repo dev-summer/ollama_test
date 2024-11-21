@@ -26,7 +26,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip3 install --upgrade pip
           pip3 install transformers torch
 
       - name: Run AI Code Review
