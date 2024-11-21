@@ -24,10 +24,6 @@ jobs:
           fi
           python3.10 --version
 
-      - name: Install dependencies
-        run: |
-          pip3 install transformers torch
-
       - name: Run AI Code Review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
