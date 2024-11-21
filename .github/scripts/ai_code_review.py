@@ -1,4 +1,5 @@
 import os
+import json
 import glob
 from github import Github
 from transformers import pipeline
@@ -9,7 +10,19 @@ g = Github(github_token)
 
 # Get repository and pull request information
 repo_name = os.environ['GITHUB_REPOSITORY']
-pr_number = int(os.environ['GITHUB_EVENT_PATH'].split('/')[-1].split('.')[0])
+# GITHUB_REF에서 Pull Request 번호 가져오기
+try:
+    pr_number = int(os.getenv("GITHUB_REF", "").split("/")[-1])
+except ValueError:
+    # GITHUB_EVENT_PATH로 대체
+    with open(os.getenv("GITHUB_EVENT_PATH", ""), "r") as f:
+        event_data = json.load(f)
+        pr_number = event_data.get("pull_request", {}).get("number", 0)
+
+if not pr_number:
+    raise ValueError("Pull Request number could not be determined!")
+
+print(f"Pull Request number: {pr_number}")
 
 repo = g.get_repo(repo_name)
 pr = repo.get_pull(pr_number)
