@@ -11,6 +11,7 @@
 		4FE147F12CAA44AF0031756F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE147F02CAA44AF0031756F /* ContentView.swift */; };
 		4FE147F32CAA44B10031756F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4FE147F22CAA44B10031756F /* Assets.xcassets */; };
 		4FE147F62CAA44B10031756F /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4FE147F52CAA44B10031756F /* Preview Assets.xcassets */; };
+		4FE147FD2CAA488D0031756F /* SquareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE147FC2CAA488D0031756F /* SquareView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +20,7 @@
 		4FE147F02CAA44AF0031756F /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4FE147F22CAA44B10031756F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4FE147F52CAA44B10031756F /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		4FE147FC2CAA488D0031756F /* SquareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SquareView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -53,6 +55,7 @@
 			children = (
 				4FE147EE2CAA44AF0031756F /* ollama_testApp.swift */,
 				4FE147F02CAA44AF0031756F /* ContentView.swift */,
+				4FE147FC2CAA488D0031756F /* SquareView.swift */,
 				4FE147F22CAA44B10031756F /* Assets.xcassets */,
 				4FE147F42CAA44B10031756F /* Preview Content */,
 			);
@@ -137,6 +140,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4FE147FD2CAA488D0031756F /* SquareView.swift in Sources */,
 				4FE147F12CAA44AF0031756F /* ContentView.swift in Sources */,
 				4FE147EF2CAA44AF0031756F /* ollama_testApp.swift in Sources */,
 			);
