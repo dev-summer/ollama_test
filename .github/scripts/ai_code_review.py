@@ -38,7 +38,7 @@ changed_files = [file.filename for file in pr.get_files()]
 prompt_files = glob.glob('.github/prompts/*.md')
 
 # Load review template
-with open('.github/template/review_template.md', 'r') as f:
+with open('.github/template/review_format.md', 'r') as f:
     review_template = f.read()
 
 # Function to generate review
