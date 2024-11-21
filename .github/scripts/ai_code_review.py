@@ -29,7 +29,12 @@ pr = repo.get_pull(pr_number)
 
 # Set up AI model
 model_id = "Qwen/Qwen2.5-Coder-7B-Instruct"
-reviewer = pipeline('text-generation', model=model_id)
+reviewer = pipeline(
+    'text-generation',
+    model=model_id,
+    max_new_token=2000,
+    device_map="auto"
+)
 
 # Get changed files
 changed_files = [file.filename for file in pr.get_files()]
@@ -44,7 +49,7 @@ with open('.github/template/review_format.md', 'r') as f:
 # Function to generate review
 def generate_review(prompt, changes):
     input_text = f"{prompt}\n\nChanged files:\n{changes}"
-    response = reviewer(input_text, max_new_token=1000, num_return_sequences=1)
+    response = reviewer(input_text)
     return response[0]['generated_text']
 
 # Generate and post reviews
